@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>Maintenance Management</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>🔧 Maintenance Management</h1>
+
+  <!-- form job -->
+  <h2>Submit New Job</h2>
+  <input id="desc" placeholder="Description" />
+  <input id="loc" placeholder="Location" />
+  <select id="pri">
+    <option value="low">Low</option>
+    <option value="medium" selected>Medium</option>
+    <option value="high">High</option>
+  </select>
+  <button onclick="submitJob()">Submit Job</button>
+
+  <!-- กรองตาม status -->
+  <h2>Job List</h2>
+  <label>Filter: </label>
+  <select id="filterStatus" onchange="loadJobs()">
+    <option value="">All</option>
+    <option value="submitted">Submitted</option>
+    <option value="in progress">In Progress</option>
+    <option value="completed">Completed</option>
+  </select>
+  <button onclick="batchUpdate()">Batch Update Selected</button>
+  <select id="batchStatus">
+    <option value="submitted">Submitted</option>
+    <option value="in progress">In Progress</option>
+    <option value="completed">Completed</option>
+  </select>
+
+  <table>
+    <thead>
+      <tr>
+        <th><input type="checkbox" onclick="toggleAll(this)"/></th>
+        <th>Description</th>
+        <th>Location</th>
+        <th>Priority</th>
+        <th>Status</th>
+        <th>Date</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="jobTable"></tbody>
+  </table>
+
+  <script>
+    async function loadJobs() {
+      const status = document.getElementById('filterStatus').value;
+      const url = '/api/jobs' + (status ? `?status=${status}` : '');
+      const res = await fetch(url);
+      const jobs = await res.json();
+      const tbody = document.getElementById('jobTable');
+      tbody.innerHTML = jobs.map(j => `
+        <tr>
+          <td><input type="checkbox" class="jobCheck" value="${j._id}"/></td>
+          <td>${j.description}</td>
+          <td>${j.location}</td>
+          <td>${j.priority}</td>
+          <td>
+            <select onchange="updateStatus('${j._id}', this.value)">
+              <option ${j.status==='submitted'?'selected':''}>submitted</option>
+              <option ${j.status==='in progress'?'selected':''}>in progress</option>
+              <option ${j.status==='completed'?'selected':''}>completed</option>
+            </select>
+          </td>
+          <td>${new Date(j.dateSubmitted).toLocaleDateString()}</td>
+          <td><button onclick="archiveJob('${j._id}')">Archive</button></td>
+        </tr>
+      `).join('');
+    }
+
+    async function submitJob() {
+      await fetch('/api/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: document.getElementById('desc').value,
+          location: document.getElementById('loc').value,
+          priority: document.getElementById('pri').value
+        })
+      });
+      loadJobs();
+    }
+
+    async function updateStatus(id, status) {
+      await fetch(`/api/jobs/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      loadJobs();
+    }
+
+    async function archiveJob(id) {
+      await fetch(`/api/jobs/${id}/archive`, { method: 'PATCH' });
+      loadJobs();
+    }
+
+    async function batchUpdate() {
+      const ids = [...document.querySelectorAll('.jobCheck:checked')]
+        .map(cb => cb.value);
+      const status = document.getElementById('batchStatus').value;
+      if (!ids.length) return alert('Select at least one job');
+      await fetch('/api/jobs/batch', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, status })
+      });
+      loadJobs();
+    }
+
+    function toggleAll(cb) {
+      document.querySelectorAll('.jobCheck')
+        .forEach(c => c.checked = cb.checked);
+    }
+
+    loadJobs();
+  </script>
+</body>
+</html>
